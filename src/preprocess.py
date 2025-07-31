@@ -39,7 +39,7 @@ class Preprocessor:
         df['Year'] = df['Date'].dt.year
         df['Month'] = df['Date'].dt.month
         df['Day'] = df['Date'].dt.day
-        df['Weekday'] = df['Date'].dt.weekday  # 0 = lunes
+        df['Weekday'] = df['Date'].dt.weekday  
 
         # Additional features
         df['Week'] = df['Date'].dt.isocalendar().week
@@ -95,7 +95,7 @@ class Preprocessor:
         df = df.copy()  # Avoid modifying the original DataFrame
         return df.sort_values(by=id_cols + [date_col])
     
-    def create_lags(self, df, lags=[1, 7, 14, 30], target_col = 'Units Sold'):
+    def create_lags(self, df, lags=[1, 7, 14, 30, 60, 90], target_col = 'Units Sold'):
         """
         Create lag features for a specified target column in a DataFrame.
 
@@ -114,7 +114,27 @@ class Preprocessor:
             df[f'{target_col}_lag_{lag}'] = df.groupby(group_cols)[target_col].shift(lag)
         return df
     
-    def add_rolling_means(self, df, window_sizes=[7, 14, 30], target_col='Units Sold'):
+    def calculate_differences(self, df, target_col = 'Units Sold'):
+        """
+        Calculate the difference between the target column and existing lag columns in a DataFrame.
+        This function identifies lag columns in the DataFrame and computes the difference between the target column and each lag column.
+        Parameters:
+        df (pd.DataFrame): The DataFrame containing the data.
+        target_col (str): The name of the target column for which to calculate differences.
+        Returns:
+        pd.DataFrame: The DataFrame with new columns for the differences between the target column and
+        existing lag columns.
+        """
+        df = df.copy()  # Avoid modifying the original DataFrame
+        lag_col = [col for col in df.columns if 'lag' in col] # Identify existing lag columns
+        if len(lag_col) < 1:
+            return df  # If no lag columns exist, return the DataFrame unchanged
+        else:
+            for col in lag_col:
+                df[f'{col}_diff'] = df[target_col] - df[col]
+        return df
+    
+    def add_rolling_stats(self, df, window_sizes=[7, 14, 30], target_col='Units Sold'):
         """
         Add rolling mean features to a DataFrame for specified window sizes.
 
@@ -130,6 +150,9 @@ class Preprocessor:
         group_cols = ['Store ID', 'Product ID']  # we need to create rolling means for each store and product, each series will be smoothed independently
         for window in window_sizes:
             df[f'{target_col}_rolling_mean_{window}'] = df.groupby(group_cols)[target_col].transform(lambda x: x.rolling(window=window, min_periods=1).mean())
+            df[f'{target_col}_rolling_min_{window}'] = df.groupby(group_cols)[target_col].transform(lambda x: x.rolling(window=window, min_periods=1).min())
+            df[f'{target_col}_rolling_max_{window}'] = df.groupby(group_cols)[target_col].transform(lambda x: x.rolling(window=window, min_periods=1).max())
+            df[f'{target_col}_rolling_std_{window}'] = df.groupby(group_cols)[target_col].transform(lambda x: x.rolling(window=window, min_periods=1).std())
         return df
     
     def clean_dataframe(self, df):
@@ -192,7 +215,8 @@ class Preprocessor:
         df = self.encode_categorical(df)[0]
         df = self.sort_by_date_and_id(df)
         df = self.create_lags(df)
-        df = self.add_rolling_means(df)
+        df = self.calculate_differences(df)
+        df = self.add_rolling_stats(df)
         df = self.clean_dataframe(df)
         df = self.interaction_features(df)
         
