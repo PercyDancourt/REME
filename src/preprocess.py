@@ -221,3 +221,27 @@ class Preprocessor:
         df = self.interaction_features(df)
         
         return df
+
+    def pipeline(self, df): # Final pipeline
+        """
+        Preprocess the DataFrame by applying key transformations:
+        - Convert 'Date' to datetime
+        - Encode categorical variables
+        - Sort by date and ID
+        - Create lag and difference features
+        - Keep only selected columns for modeling
+
+        Parameters:
+        df (pd.DataFrame): The input DataFrame.
+
+        Returns:
+        X (pd.DataFrame): Features for modeling.
+        y (pd.DataFrame): Target variable.
+        """
+        df = self.date_to_datetime(df)
+        df = self.encode_categorical(df)[0]
+        df = self.sort_by_date_and_id(df)
+        df = self.create_lags(df)
+        df = self.calculate_differences(df)
+        
+        return df[['Store ID', 'Product ID', 'Day', 'Month', 'Year', 'Units Sold_lag_1_diff', 'Units Sold_lag_30_diff', 'Units Sold_lag_14_diff', 'Units Sold_lag_30','Price']], df[['Units Sold']]
